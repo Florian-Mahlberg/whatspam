@@ -1,3 +1,7 @@
+#  Created by Florian-Mahlberg https://github.com/Florian-Mahlberg/
+#  On thursday, the 14th january
+#  Orginal by zensajnani https://github.com/zensajnani/whatsapp_bot
+
 import time
 import pickle
 import random
@@ -12,8 +16,6 @@ from selenium.webdriver.support.ui import Select, WebDriverWait
 from selenium.common.exceptions import InvalidArgumentException, NoSuchElementException, InvalidSessionIdException
 from selenium.webdriver.support import expected_conditions as EC
 from urllib3.exceptions import MaxRetryError
-
-
 import requests
 
 # variable to store the name of the contact
@@ -28,7 +30,7 @@ rightInfos = False
 exitProgramm = False
 
 
-#Wait for the QR Code
+#Wait for Code
 def wait_for_code():
     try:
         element = driver.find_element_by_xpath('//*[@id="side"]/div[1]/div/label/div/div[2]')
@@ -39,6 +41,7 @@ def wait_for_code():
     else:
         return False
 
+#Checks infos
 def check_contact_info():
     try:
         while True:
@@ -51,6 +54,7 @@ def check_contact_info():
     except IndexError:
         return False
 
+#Sets infos
 def set_contact():
     loc = input("Please input contact's name: ")
     if loc == "" or loc == " ":
@@ -91,6 +95,9 @@ def find_contact(contact):
     except NoSuchElementException:
         time.sleep(0.2)
         cancel.click()
+    except StaleElementReferenceException:
+        time.sleep(0.2)
+        cancel.click()
 
 #find message box
 def send_message(message):
@@ -100,6 +107,7 @@ def send_message(message):
     input_box.send_keys(message + Keys.ENTER) #enters message
     time.sleep(0)
 
+#check if, the contact exist
 def exist_contact(contact):
     inp_xpath_search = '//*[@id="side"]/div[1]/div/label/div/div[2]'
     inp_xpath_cancel = '//*[@id="side"]/div[1]/div/button/div[2]'
@@ -115,15 +123,19 @@ def exist_contact(contact):
         selected_contact = driver.find_element_by_xpath("//span[@title='"+contact+"']")
         time.sleep(0.2)
         selected_contact.click() # select contact
+        time.sleep(0.2)
+        cancel.click()
         return True
     except NoSuchElementException:
         time.sleep(0.2)
         cancel.click()
         return False
 
-def aria_labelChecker(aria_label):
-    print(aria_label)
-
+#Func that returns aria label and sends message
+def for_send_message(count, messages, timeForFor):
+    send_message(f'{message} {count+1}/{timeForFor}')
+    btn = driver.find_element_by_xpath('//*[@id="main"]/div[3]/div/div/div[3]/div[last()]/div/div/div/div[2]/div/div')
+    return btn.find_element_by_css_selector('span').get_attribute("aria-label")
 
 #open a Whatsapp Web interface which automatically asks you to scan the QR code
 options = webdriver.ChromeOptions()
@@ -136,17 +148,13 @@ except InvalidArgumentException:
     print('\n'+ '\n'+ "I wanted to start Chrome, but you started it already." + '\n'+ "Please close it, so I can create a fresh browser webpage!"+ '\n'+ '\n')
     sys.exit()
 
-response = os.system("ping -c 1 " + "google.com")
-if response == 0:
-    print ("google", 'is up!')
-else:
-    print ("google", 'is down!')
-
-
+#try, to check ctrl+c
 try:
+    #Waits for QR code
     while wait_for_code() == False:
         time.sleep(0.5)
 
+    #waits until all Infos are correct
     while True:
         while rightInfos == False:
             contact = set_contact()
@@ -161,28 +169,25 @@ try:
             rightInfos = True
             break
 
+    #clicks on the right contact
     find_contact(contact)
 
     #prints the automated message multiple times
     for count in range(timeForFor):
-        send_message(f'{message} {count+1}/{timeForFor}')
-        btn = driver.find_element_by_xpath('//*[@id="main"]/div[3]/div/div/div[3]/div[last()]/div/div/div/div[2]/div/div')
-        aria_label = btn.find_element_by_css_selector('span').get_attribute("aria-label")
+        aria_label = for_send_message(count, message, timeForFor)
 
+    #Waits until all messages are send (max 30 sec). Else pings to whatsapp.com and checks, if the phone has no Internet connection
     i = 0
     while str(aria_label) == " Pending ":
         print("Contacting WhatsApp Servers " + str(i/2) + "/" + str(time_for_ending_servers/2))
         try:
             aria_label = btn.find_element_by_css_selector('span').get_attribute("aria-label")
         except MaxRetryError:
-            print("Timeout")
-            response = os.system("ping -c 1 " + "google.com")
-
+            response = os.system("ping -c 1 " + "whatsapp.com")
             if response == 0:
                 print("Can't reach your phone, please check, if your Phone has a stable connection!")
             else:
                 print("Can't contact the WhatsApp Servers, please check, that your Phone and Computer has a stable connection.")
-
             try:
                 driver.close()
                 driver.quit()
@@ -202,7 +207,9 @@ try:
         time.sleep(0)
     exitProgramm = False
 finally:
+    #This code will run after the rest
     if exitProgramm == True:
+        #This code will run, after an error or Ctrl+c
         try:
             btn = driver.find_element_by_xpath('//*[@id="main"]/div[3]/div/div/div[3]/div[last()]/div/div/div/div[2]/div/div')
             aria_label = btn.find_element_by_css_selector('span').get_attribute("aria-label")
@@ -210,6 +217,7 @@ finally:
             print(" <- Thats a Ctrl+C ? I'll stop for you! Please don't press Ctrl+C until the programm is closed.")
             print("Waiting for messages, that didn't want to go to the Server...")
 
+            #Waits until all Messages are send (max 30 sec.)
             i = 0
             while str(aria_label) == "Pending":
                 print("Contacting WhatsApp Servers " + str(i/2) + "/" + str(time_for_ending_servers/2))
@@ -221,11 +229,11 @@ finally:
                 time.sleep(0.5)
             time.sleep(1)
             driver.close()
+        #To many errors, if the Phone has no Internet (or Computer)
         except InvalidSessionIdException:
             time.sleep(0)
         except NoSuchElementException:
             time.sleep(0)
         except MaxRetryError:
             time.sleep(0)
-
     print("Bye, I hope you come back and don't forget me!")
